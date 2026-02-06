@@ -280,10 +280,18 @@ async function archiveOldTabs() {
 
   console.log('[Zen Tab Manager] Archive threshold:', archiveThreshold, 'ms (', settings.archiveAfterHours, 'hours)');
 
-  const tabs = await browser.tabs.query({});
-  const tabsToClose = [];
+  // Query ALL tabs across ALL windows and workspaces
+  // In Zen Browser, tabs in different workspaces might be in different windows
+  const allWindows = await browser.windows.getAll({ populate: true, windowTypes: ['normal'] });
+  const tabs = [];
 
-  console.log('[Zen Tab Manager] Checking', tabs.length, 'tabs');
+  for (const window of allWindows) {
+    tabs.push(...window.tabs);
+  }
+
+  console.log('[Zen Tab Manager] Checking', tabs.length, 'tabs across', allWindows.length, 'windows/workspaces');
+
+  const tabsToClose = [];
 
   for (const tab of tabs) {
     // Skip pinned tabs if setting is enabled
