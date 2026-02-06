@@ -140,8 +140,14 @@ browser.tabs.onActivated.addListener(async (activeInfo) => {
   // Update access time AFTER archive check
   const stored = await browser.storage.local.get('tabAccessTimes');
   const accessTimes = stored.tabAccessTimes || {};
+  const oldTime = accessTimes[activeInfo.tabId];
   accessTimes[activeInfo.tabId] = Date.now();
   await browser.storage.local.set({ tabAccessTimes: accessTimes });
+
+  if (oldTime) {
+    const timeSinceLastAccess = Date.now() - oldTime;
+    console.log('[Zen Tab Manager] Tab', activeInfo.tabId, 'accessed via onActivated. Time since last access:', timeSinceLastAccess, 'ms', tab.url);
+  }
 });
 
 // Track new tabs
@@ -161,13 +167,19 @@ browser.tabs.onCreated.addListener(async (tab) => {
 // Track tab updates (URL changes)
 browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.url) {
-    console.log('[Zen Tab Manager] Tab URL changed:', tabId, changeInfo.url);
+    console.log('[Zen Tab Manager] Tab', tabId, 'URL changed:', changeInfo.url);
 
     // Update access time on URL change
     const stored = await browser.storage.local.get('tabAccessTimes');
     const accessTimes = stored.tabAccessTimes || {};
+    const oldTime = accessTimes[tabId];
     accessTimes[tabId] = Date.now();
     await browser.storage.local.set({ tabAccessTimes: accessTimes });
+
+    if (oldTime) {
+      const timeSinceLastAccess = Date.now() - oldTime;
+      console.log('[Zen Tab Manager] Tab', tabId, 'access time updated due to URL change. Time since last access:', timeSinceLastAccess, 'ms');
+    }
 
     // Check if tab should be moved to a different workspace
     await checkAndMoveTabToWorkspace(tab);
@@ -358,6 +370,16 @@ async function archiveOldTabs() {
   const tabsToClose = [];
 
   for (const tab of tabs) {
+    // Special logging for Amazon tabs to debug the issue
+    if (tab.url && tab.url.includes('amazon')) {
+      console.log('[Zen Tab Manager] 🔍 Amazon tab detected:', tab.id, {
+        url: tab.url,
+        pinned: tab.pinned,
+        lastAccessTime: accessTimes[tab.id] || 'never',
+        currentTime: now
+      });
+    }
+
     // Skip pinned tabs if setting is enabled
     if (settings.excludePinnedTabs && tab.pinned) {
       console.log('[Zen Tab Manager] Skipping pinned tab:', tab.id, tab.url);
