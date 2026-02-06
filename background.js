@@ -164,24 +164,14 @@ browser.tabs.onCreated.addListener(async (tab) => {
   await checkAndMoveTabToWorkspace(tab);
 });
 
-// Track tab updates (URL changes)
+// Track tab updates (URL changes) - only for workspace assignment
+// Note: We do NOT update access time here - only user interaction (clicking tab) counts
 browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.url) {
     console.log('[Zen Tab Manager] Tab', tabId, 'URL changed:', changeInfo.url);
 
-    // Update access time on URL change
-    const stored = await browser.storage.local.get('tabAccessTimes');
-    const accessTimes = stored.tabAccessTimes || {};
-    const oldTime = accessTimes[tabId];
-    accessTimes[tabId] = Date.now();
-    await browser.storage.local.set({ tabAccessTimes: accessTimes });
-
-    if (oldTime) {
-      const timeSinceLastAccess = Date.now() - oldTime;
-      console.log('[Zen Tab Manager] Tab', tabId, 'access time updated due to URL change. Time since last access:', timeSinceLastAccess, 'ms');
-    }
-
     // Check if tab should be moved to a different workspace
+    // (but don't update access time - background activity doesn't count as "active")
     await checkAndMoveTabToWorkspace(tab);
   }
 });
