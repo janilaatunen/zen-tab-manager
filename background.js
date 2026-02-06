@@ -197,30 +197,45 @@ browser.tabs.onRemoved.addListener(async (tabId) => {
 async function checkAndMoveTabToWorkspace(tab) {
   const settings = await getSettings();
 
+  console.log('[Zen Tab Manager] Checking container assignment for tab:', tab.id, tab.url);
+  console.log('[Zen Tab Manager] Current container:', tab.cookieStoreId);
+  console.log('[Zen Tab Manager] Rules configured:', settings.workspaceRules?.length || 0);
+
   if (!tab.url || !settings.workspaceRules || settings.workspaceRules.length === 0) {
+    console.log('[Zen Tab Manager] Skipping: no URL or no rules');
     return;
   }
 
   // Check each container rule
   for (const rule of settings.workspaceRules) {
+    console.log('[Zen Tab Manager] Testing rule:', rule.pattern, '→', rule.workspaceId);
+
     if (matchesPattern(tab.url, rule.pattern)) {
+      console.log('[Zen Tab Manager] ✓ Pattern matched!');
+
       if (tab.cookieStoreId === rule.workspaceId) {
+        console.log('[Zen Tab Manager] Tab already in correct container');
         break;
       }
 
+      console.log('[Zen Tab Manager] Attempting to move tab to container...');
       try {
-        await browser.tabs.create({
+        const newTab = await browser.tabs.create({
           url: tab.url,
           cookieStoreId: rule.workspaceId,
           active: tab.active,
           index: tab.index + 1
         });
+        console.log('[Zen Tab Manager] New tab created:', newTab.id);
+
         await browser.tabs.remove(tab.id);
-        console.log('[Zen Tab Manager] Moved tab to container:', rule.pattern, '→', rule.workspaceId);
+        console.log('[Zen Tab Manager] ✓ Successfully moved tab to container:', rule.workspaceId);
       } catch (error) {
-        console.error('[Zen Tab Manager] Failed to move tab to container:', error);
+        console.error('[Zen Tab Manager] ✗ Failed to move tab to container:', error);
       }
       break;
+    } else {
+      console.log('[Zen Tab Manager] ✗ Pattern did not match');
     }
   }
 }
