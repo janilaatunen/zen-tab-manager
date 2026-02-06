@@ -257,34 +257,57 @@ function isExcludedDomain(url, excludedDomains) {
 
 // Archive old tabs
 async function archiveOldTabs() {
+  console.log('[Zen Tab Manager] Running archiveOldTabs check...');
+
   const settings = await getSettings();
   const localData = await browser.storage.local.get('tabAccessTimes');
   const accessTimes = localData.tabAccessTimes || {};
 
+  console.log('[Zen Tab Manager] Settings:', {
+    archiveEnabled: settings.archiveEnabled,
+    archiveAfterHours: settings.archiveAfterHours,
+    excludePinnedTabs: settings.excludePinnedTabs,
+    excludedDomains: settings.excludedDomains
+  });
+
   if (!settings.archiveEnabled) {
+    console.log('[Zen Tab Manager] Archive is disabled, skipping');
     return;
   }
 
   const now = Date.now();
   const archiveThreshold = settings.archiveAfterHours * 60 * 60 * 1000; // Convert hours to milliseconds
 
+  console.log('[Zen Tab Manager] Archive threshold:', archiveThreshold, 'ms (', settings.archiveAfterHours, 'hours)');
+
   const tabs = await browser.tabs.query({});
   const tabsToClose = [];
+
+  console.log('[Zen Tab Manager] Checking', tabs.length, 'tabs');
 
   for (const tab of tabs) {
     // Skip pinned tabs if setting is enabled
     if (settings.excludePinnedTabs && tab.pinned) {
+      console.log('[Zen Tab Manager] Skipping pinned tab:', tab.id, tab.url);
       continue;
     }
 
     // Skip tabs with excluded domains
     if (tab.url && isExcludedDomain(tab.url, settings.excludedDomains || [])) {
+      console.log('[Zen Tab Manager] Skipping excluded domain:', tab.id, tab.url);
       continue;
     }
 
     // Check if tab is old enough to archive
     const lastAccess = accessTimes[tab.id] || now;
     const timeSinceAccess = now - lastAccess;
+
+    console.log('[Zen Tab Manager] Tab', tab.id, ':', {
+      url: tab.url,
+      lastAccess: new Date(lastAccess).toISOString(),
+      timeSinceAccess: timeSinceAccess,
+      shouldClose: timeSinceAccess > archiveThreshold
+    });
 
     if (timeSinceAccess > archiveThreshold) {
       tabsToClose.push(tab.id);
@@ -293,8 +316,10 @@ async function archiveOldTabs() {
 
   // Close old tabs
   if (tabsToClose.length > 0) {
-    console.log(`Closing ${tabsToClose.length} old tabs`);
+    console.log(`[Zen Tab Manager] Closing ${tabsToClose.length} old tabs:`, tabsToClose);
     await browser.tabs.remove(tabsToClose);
+  } else {
+    console.log('[Zen Tab Manager] No tabs to close');
   }
 }
 
