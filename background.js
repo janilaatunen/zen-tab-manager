@@ -280,33 +280,54 @@ async function archiveOldTabs() {
 
   console.log('[Zen Tab Manager] Archive threshold:', archiveThreshold, 'ms (', settings.archiveAfterHours, 'hours)');
 
-  // Zen Browser uses containers for workspaces, so we need to query across all containers
-  // First, try to get all containers
-  let allContainers = [];
+  // Zen Browser hides tabs from inactive workspaces from the WebExtensions API
+  // Try multiple query strategies to find all tabs
+
+  const tabsById = new Map();
+
+  // Strategy 1: Query all windows
   try {
-    allContainers = await browser.contextualIdentities.query({});
-    console.log('[Zen Tab Manager] Found', allContainers.length, 'containers:', allContainers.map(c => ({ id: c.cookieStoreId, name: c.name })));
+    const allWindows = await browser.windows.getAll({ populate: false });
+    console.log('[Zen Tab Manager] Strategy 1: Found', allWindows.length, 'windows');
+
+    for (const window of allWindows) {
+      const windowTabs = await browser.tabs.query({ windowId: window.id });
+      windowTabs.forEach(tab => tabsById.set(tab.id, tab));
+    }
   } catch (error) {
-    console.log('[Zen Tab Manager] Could not query containers:', error);
+    console.log('[Zen Tab Manager] Strategy 1 failed:', error);
   }
 
-  // Query tabs - try to get ALL tabs regardless of container
-  // We need to query all windows since Zen might split containers across windows
-  const allWindows = await browser.windows.getAll({ populate: false });
-  console.log('[Zen Tab Manager] Found', allWindows.length, 'windows');
-
-  let tabs = [];
-  for (const window of allWindows) {
-    const windowTabs = await browser.tabs.query({ windowId: window.id });
-    console.log('[Zen Tab Manager] Window', window.id, 'has', windowTabs.length, 'tabs');
-    tabs.push(...windowTabs);
+  // Strategy 2: Try querying with hidden parameter
+  try {
+    const hiddenTabs = await browser.tabs.query({ hidden: true });
+    console.log('[Zen Tab Manager] Strategy 2: Found', hiddenTabs.length, 'hidden tabs');
+    hiddenTabs.forEach(tab => tabsById.set(tab.id, tab));
+  } catch (error) {
+    console.log('[Zen Tab Manager] Strategy 2 failed (hidden tabs not supported):', error.message);
   }
 
-  console.log('[Zen Tab Manager] Total tabs found:', tabs.length);
+  // Strategy 3: Query each container explicitly
+  try {
+    const allContainers = await browser.contextualIdentities.query({});
+    console.log('[Zen Tab Manager] Strategy 3: Found', allContainers.length, 'containers');
 
-  // Log unique containers in the tabs
-  const containersInUse = new Set(tabs.map(t => t.cookieStoreId || 'default'));
-  console.log('[Zen Tab Manager] Tabs are in', containersInUse.size, 'containers:', Array.from(containersInUse));
+    for (const container of allContainers) {
+      const containerTabs = await browser.tabs.query({ cookieStoreId: container.cookieStoreId });
+      console.log('[Zen Tab Manager]  - Container', container.name, ':', containerTabs.length, 'tabs');
+      containerTabs.forEach(tab => tabsById.set(tab.id, tab));
+    }
+
+    // Also query default container
+    const defaultTabs = await browser.tabs.query({ cookieStoreId: 'firefox-default' });
+    console.log('[Zen Tab Manager]  - Default container:', defaultTabs.length, 'tabs');
+    defaultTabs.forEach(tab => tabsById.set(tab.id, tab));
+  } catch (error) {
+    console.log('[Zen Tab Manager] Strategy 3 failed:', error);
+  }
+
+  const tabs = Array.from(tabsById.values());
+  console.log('[Zen Tab Manager] Total unique tabs found across all strategies:', tabs.length);
 
   const tabsToClose = [];
 
