@@ -327,7 +327,13 @@ async function archiveOldTabs() {
   }
 
   const tabs = Array.from(tabsById.values());
-  console.log('[Zen Tab Manager] Total unique tabs found across all strategies:', tabs.length);
+  console.log('[Zen Tab Manager] Total unique tabs found:', tabs.length);
+
+  if (tabs.length < 20) {
+    console.log('[Zen Tab Manager] ⚠️  LIMITATION: Zen Browser only exposes tabs from the ACTIVE workspace');
+    console.log('[Zen Tab Manager] ⚠️  To archive tabs in other workspaces, manually switch to each workspace');
+    console.log('[Zen Tab Manager] ⚠️  The extension will check tabs in the active workspace every minute');
+  }
 
   const tabsToClose = [];
 
