@@ -100,20 +100,39 @@ browser.runtime.onInstalled.addListener(async (details) => {
   // Primary archiving happens on workspace switch
   browser.alarms.create('checkTabs', { periodInMinutes: 60 });
 
-  // Initialize tab access times
+  // Initialize tab access times (preserves existing times)
   await initializeTabAccessTimes();
+
+  // Run initial archive check on install/update
+  console.log('[Zen Tab Manager] Running initial archive check after install/update');
+  await archiveOldTabs();
 });
 
-// Track tab access times
+// Track tab access times - preserve existing times, only add new tabs
 async function initializeTabAccessTimes() {
   const tabs = await browser.tabs.query({});
-  const accessTimes = {};
 
+  // Get existing access times (preserve them across reloads)
+  const stored = await browser.storage.local.get('tabAccessTimes');
+  const accessTimes = stored.tabAccessTimes || {};
+
+  // Only add new tabs that don't have an access time
   for (const tab of tabs) {
-    accessTimes[tab.id] = Date.now();
+    if (!accessTimes[tab.id]) {
+      accessTimes[tab.id] = Date.now();
+    }
+  }
+
+  // Clean up access times for tabs that no longer exist
+  const currentTabIds = new Set(tabs.map(t => t.id));
+  for (const tabId in accessTimes) {
+    if (!currentTabIds.has(parseInt(tabId))) {
+      delete accessTimes[tabId];
+    }
   }
 
   await browser.storage.local.set({ tabAccessTimes: accessTimes });
+  console.log('[Zen Tab Manager] Initialized access times for', Object.keys(accessTimes).length, 'tabs');
 }
 
 // Track the currently active workspace to detect switches
