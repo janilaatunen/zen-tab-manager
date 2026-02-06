@@ -96,9 +96,9 @@ browser.runtime.onInstalled.addListener(async (details) => {
     await saveSettings(DEFAULT_SETTINGS);
   }
 
-  // Create alarm for periodic tab checks as backup (every 30 minutes)
+  // Create alarm for periodic tab checks as backup (once an hour)
   // Primary archiving happens on workspace switch
-  browser.alarms.create('checkTabs', { periodInMinutes: 30 });
+  browser.alarms.create('checkTabs', { periodInMinutes: 60 });
 
   // Initialize tab access times
   await initializeTabAccessTimes();
