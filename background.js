@@ -280,16 +280,29 @@ async function archiveOldTabs() {
 
   console.log('[Zen Tab Manager] Archive threshold:', archiveThreshold, 'ms (', settings.archiveAfterHours, 'hours)');
 
-  // Query ALL tabs across ALL windows and workspaces
-  // In Zen Browser, tabs in different workspaces might be in different windows
-  const allWindows = await browser.windows.getAll({ populate: true, windowTypes: ['normal'] });
-  const tabs = [];
+  // Try to get ALL tabs using direct query first
+  let tabs = await browser.tabs.query({});
 
-  for (const window of allWindows) {
-    tabs.push(...window.tabs);
+  console.log('[Zen Tab Manager] Direct query found', tabs.length, 'tabs');
+
+  // Also check windows to understand Zen's structure
+  const allWindows = await browser.windows.getAll({ populate: true });
+  console.log('[Zen Tab Manager] Found', allWindows.length, 'windows with types:', allWindows.map(w => w.type));
+
+  // If direct query didn't get all tabs, try getting from all windows
+  if (allWindows.length > 1 || tabs.length === 0) {
+    tabs = [];
+    for (const window of allWindows) {
+      console.log('[Zen Tab Manager] Window', window.id, 'has', window.tabs.length, 'tabs');
+      tabs.push(...window.tabs);
+    }
   }
 
-  console.log('[Zen Tab Manager] Checking', tabs.length, 'tabs across', allWindows.length, 'windows/workspaces');
+  console.log('[Zen Tab Manager] Total tabs to check:', tabs.length);
+
+  // Log unique containers to understand workspace structure
+  const containers = new Set(tabs.map(t => t.cookieStoreId || 'default'));
+  console.log('[Zen Tab Manager] Found', containers.size, 'unique containers/workspaces:', Array.from(containers));
 
   const tabsToClose = [];
 
