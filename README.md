@@ -14,12 +14,18 @@ Automatically manage tabs in Zen Browser through workspace-triggered archiving a
 
 ## Installation
 
-1. Download `zen-tab-manager.xpi` from releases
-2. In Zen Browser, set `xpinstall.signatures.required` to `false` in `about:config`
-3. Go to `about:addons` → Gear icon → Install Add-on From File
-4. Select the downloaded XPI file
+**Prerequisites:**
+1. Open Zen Browser
+2. Go to `about:config`
+3. Set `xpinstall.signatures.required` to `false` (one-time setup)
 
-See [INSTALL.md](INSTALL.md) for detailed instructions.
+**Install:**
+1. Download `zen-tab-manager.xpi` from [releases](https://github.com/janilaatunen/zen-tab-manager/releases)
+2. Go to `about:addons` → Gear icon → Install Add-on From File
+3. Select the downloaded XPI file
+4. Click "Add" when prompted
+
+**Verify:** Extension icon should appear in toolbar and in `about:addons`
 
 ## How It Works
 
