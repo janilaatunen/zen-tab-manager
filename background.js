@@ -12,14 +12,88 @@ const DEFAULT_SETTINGS = {
   excludePinnedTabs: true,
   excludedDomains: [], // Array of domains to exclude from archiving
   workspaceRules: [], // Array of {pattern: string, workspaceId: string}
+  useSyncStorage: true, // Enable cross-browser sync by default
   lastCheck: Date.now()
 };
 
+// Storage helper functions
+async function getSettingsStorage() {
+  // Check local storage first for the useSyncStorage preference
+  const localPrefs = await browser.storage.local.get('useSyncStorage');
+  const useSyncStorage = localPrefs.useSyncStorage !== undefined ? localPrefs.useSyncStorage : true;
+
+  return useSyncStorage ? browser.storage.sync : browser.storage.local;
+}
+
+async function getSettings() {
+  const storage = await getSettingsStorage();
+  const stored = await storage.get('settings');
+  return stored.settings || DEFAULT_SETTINGS;
+}
+
+async function saveSettings(settings) {
+  const storage = await getSettingsStorage();
+  await storage.set({ settings });
+
+  // Also save the sync preference to local storage
+  await browser.storage.local.set({ useSyncStorage: settings.useSyncStorage });
+}
+
+// Migrate settings from local to sync storage
+async function migrateToSync() {
+  console.log('[Zen Tab Manager] Checking for migration...');
+
+  // Check if migration has already been done
+  const migrationCheck = await browser.storage.local.get('migrationComplete');
+  if (migrationCheck.migrationComplete) {
+    console.log('[Zen Tab Manager] Migration already complete');
+    return;
+  }
+
+  // Get settings from local storage
+  const localData = await browser.storage.local.get('settings');
+  if (!localData.settings) {
+    console.log('[Zen Tab Manager] No local settings to migrate');
+    await browser.storage.local.set({ migrationComplete: true });
+    return;
+  }
+
+  // Check if user wants to use sync
+  const useSyncStorage = localData.settings.useSyncStorage !== false;
+
+  if (useSyncStorage) {
+    try {
+      // Copy settings to sync storage
+      await browser.storage.sync.set({ settings: localData.settings });
+      console.log('[Zen Tab Manager] Settings migrated to sync storage');
+    } catch (error) {
+      console.log('[Zen Tab Manager] Migration failed, keeping local storage:', error);
+      // If sync fails, disable it
+      localData.settings.useSyncStorage = false;
+      await browser.storage.local.set({ settings: localData.settings });
+    }
+  }
+
+  // Mark migration as complete
+  await browser.storage.local.set({
+    migrationComplete: true,
+    useSyncStorage: useSyncStorage
+  });
+}
+
 // Initialize settings on install
-browser.runtime.onInstalled.addListener(async () => {
-  const stored = await browser.storage.local.get('settings');
-  if (!stored.settings) {
-    await browser.storage.local.set({ settings: DEFAULT_SETTINGS });
+browser.runtime.onInstalled.addListener(async (details) => {
+  console.log('[Zen Tab Manager] Extension installed/updated:', details.reason);
+
+  // Run migration if updating from old version
+  if (details.reason === 'update') {
+    await migrateToSync();
+  }
+
+  // Initialize settings if they don't exist
+  const settings = await getSettings();
+  if (!settings || Object.keys(settings).length === 0) {
+    await saveSettings(DEFAULT_SETTINGS);
   }
 
   // Create alarm for periodic tab checks (every hour)
@@ -93,8 +167,7 @@ browser.tabs.onRemoved.addListener(async (tabId) => {
 async function checkAndMoveTabToWorkspace(tab) {
   console.log('[Zen Tab Manager] Checking container rules for tab:', tab.id, tab.url);
 
-  const stored = await browser.storage.local.get('settings');
-  const settings = stored.settings || DEFAULT_SETTINGS;
+  const settings = await getSettings();
 
   console.log('[Zen Tab Manager] Current container rules:', settings.workspaceRules);
 
@@ -184,9 +257,9 @@ function isExcludedDomain(url, excludedDomains) {
 
 // Archive old tabs
 async function archiveOldTabs() {
-  const stored = await browser.storage.local.get(['settings', 'tabAccessTimes']);
-  const settings = stored.settings || DEFAULT_SETTINGS;
-  const accessTimes = stored.tabAccessTimes || {};
+  const settings = await getSettings();
+  const localData = await browser.storage.local.get('tabAccessTimes');
+  const accessTimes = localData.tabAccessTimes || {};
 
   if (!settings.archiveEnabled) {
     return;
@@ -242,6 +315,40 @@ browser.runtime.onMessage.addListener(async (message) => {
   if (message.action === 'archiveNow') {
     await archiveOldTabs();
     return { success: true };
+  }
+
+  if (message.action === 'toggleSyncStorage') {
+    const currentSettings = await getSettings();
+    const newUseSyncValue = message.enabled;
+
+    console.log('[Zen Tab Manager] Toggling sync storage:', newUseSyncValue);
+
+    if (newUseSyncValue) {
+      // Moving from local to sync
+      try {
+        currentSettings.useSyncStorage = true;
+        await browser.storage.sync.set({ settings: currentSettings });
+        await browser.storage.local.set({ useSyncStorage: true });
+        console.log('[Zen Tab Manager] Settings moved to sync storage');
+        return { success: true };
+      } catch (error) {
+        console.error('[Zen Tab Manager] Failed to enable sync:', error);
+        return { success: false, error: error.message };
+      }
+    } else {
+      // Moving from sync to local
+      try {
+        currentSettings.useSyncStorage = false;
+        await browser.storage.local.set({ settings: currentSettings, useSyncStorage: false });
+        // Clear sync storage
+        await browser.storage.sync.remove('settings');
+        console.log('[Zen Tab Manager] Settings moved to local storage');
+        return { success: true };
+      } catch (error) {
+        console.error('[Zen Tab Manager] Failed to disable sync:', error);
+        return { success: false, error: error.message };
+      }
+    }
   }
 
   if (message.action === 'getWorkspaces') {

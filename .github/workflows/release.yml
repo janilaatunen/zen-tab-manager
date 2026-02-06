@@ -1,0 +1,60 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build XPI
+        run: |
+          zip -r zen-tab-manager-v${{ steps.get_version.outputs.VERSION }}.xpi \
+            manifest.json \
+            background.js \
+            options.html \
+            options.js \
+            options.css \
+            icon.png \
+            icon.svg \
+            LICENSE \
+            README.md \
+            -x "*.DS_Store" "*/.git/*"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: zen-tab-manager-v${{ steps.get_version.outputs.VERSION }}.xpi
+          body: |
+            ## Zen Tab Manager v${{ steps.get_version.outputs.VERSION }}
+
+            ### Installation
+
+            1. Download `zen-tab-manager-v${{ steps.get_version.outputs.VERSION }}.xpi`
+            2. Open Zen Browser
+            3. Set `xpinstall.signatures.required` to `false` in `about:config` (one-time setup)
+            4. Go to `about:addons` → Gear icon → Install Add-on From File
+            5. Select the downloaded XPI file
+
+            See [INSTALL.md](https://github.com/${{ github.repository }}/blob/main/INSTALL.md) for detailed instructions.
+
+            ### Changelog
+
+            See commit history for changes in this release.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

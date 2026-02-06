@@ -5,17 +5,37 @@ const DEFAULT_SETTINGS = {
   archiveAfterHours: 48,
   excludePinnedTabs: true,
   excludedDomains: [],
-  workspaceRules: []
+  workspaceRules: [],
+  useSyncStorage: true
 };
+
+// Storage helper functions
+async function getSettingsStorage() {
+  const localPrefs = await browser.storage.local.get('useSyncStorage');
+  const useSyncStorage = localPrefs.useSyncStorage !== undefined ? localPrefs.useSyncStorage : true;
+  return useSyncStorage ? browser.storage.sync : browser.storage.local;
+}
+
+async function getSettings() {
+  const storage = await getSettingsStorage();
+  const stored = await storage.get('settings');
+  return stored.settings || DEFAULT_SETTINGS;
+}
+
+async function saveSettingsToStorage(settings) {
+  const storage = await getSettingsStorage();
+  await storage.set({ settings });
+  await browser.storage.local.set({ useSyncStorage: settings.useSyncStorage });
+}
 
 // Load settings
 async function loadSettings() {
-  const stored = await browser.storage.local.get('settings');
-  const settings = stored.settings || DEFAULT_SETTINGS;
+  const settings = await getSettings();
 
   document.getElementById('archiveEnabled').checked = settings.archiveEnabled;
   document.getElementById('archiveAfterHours').value = settings.archiveAfterHours;
   document.getElementById('excludePinnedTabs').checked = settings.excludePinnedTabs;
+  document.getElementById('useSyncStorage').checked = settings.useSyncStorage !== false;
 
   renderExcludedDomains(settings.excludedDomains || []);
   renderWorkspaceRules(settings.workspaceRules || []);
@@ -62,19 +82,53 @@ async function saveSettings() {
     archiveAfterHours: parseInt(document.getElementById('archiveAfterHours').value),
     excludePinnedTabs: document.getElementById('excludePinnedTabs').checked,
     excludedDomains: getCurrentExcludedDomains(),
-    workspaceRules: getCurrentWorkspaceRules()
+    workspaceRules: getCurrentWorkspaceRules(),
+    useSyncStorage: document.getElementById('useSyncStorage').checked
   };
 
-  await browser.storage.local.set({ settings });
+  await saveSettingsToStorage(settings);
   showStatus('Settings saved successfully!', 'success');
 }
 
 // Reset settings to defaults
 async function resetSettings() {
   if (confirm('Are you sure you want to reset all settings to defaults?')) {
-    await browser.storage.local.set({ settings: DEFAULT_SETTINGS });
+    await saveSettingsToStorage(DEFAULT_SETTINGS);
     await loadSettings();
     showStatus('Settings reset to defaults', 'success');
+  }
+}
+
+// Toggle sync storage
+async function toggleSyncStorage() {
+  const checkbox = document.getElementById('useSyncStorage');
+  const enabled = checkbox.checked;
+
+  // Show confirmation dialog
+  const action = enabled ? 'enable' : 'disable';
+  const message = enabled
+    ? 'Enable settings sync? Your settings will sync across all browsers signed into Firefox Sync.'
+    : 'Disable settings sync? Your settings will only be stored on this device.';
+
+  if (!confirm(message)) {
+    checkbox.checked = !enabled;
+    return;
+  }
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      action: 'toggleSyncStorage',
+      enabled: enabled
+    });
+
+    if (response.success) {
+      showStatus(`Settings sync ${enabled ? 'enabled' : 'disabled'}!`, 'success');
+    } else {
+      throw new Error(response.error || 'Unknown error');
+    }
+  } catch (error) {
+    checkbox.checked = !enabled;
+    showStatus(`Failed to ${action} sync: ${error.message}`, 'error');
   }
 }
 
@@ -264,6 +318,7 @@ document.getElementById('resetSettings').addEventListener('click', resetSettings
 document.getElementById('addExcludedDomain').addEventListener('click', addExcludedDomain);
 document.getElementById('addWorkspaceRule').addEventListener('click', addWorkspaceRule);
 document.getElementById('archiveNow').addEventListener('click', archiveNow);
+document.getElementById('useSyncStorage').addEventListener('change', toggleSyncStorage);
 
 // Allow Enter key to add items
 document.getElementById('newExcludedDomain').addEventListener('keypress', (e) => {
