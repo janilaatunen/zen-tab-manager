@@ -1,193 +1,97 @@
 # Zen Tab Manager
 
-A productivity browser extension for Zen Browser that automatically manages tabs through archiving and container-based organization.
+> **⚠️ Disclaimer:** This extension was vibe coded. Use at your own risk.
+
+Automatically manage tabs in Zen Browser through workspace-triggered archiving and container-based organization.
 
 ## Features
 
-### 1. Auto-Archive Old Tabs
-- Automatically closes tabs that haven't been accessed in a configurable time period (default: 48 hours)
-- Customizable archive time (set in hours)
-- Protects pinned tabs from being archived
-- Exclude specific domains from auto-archiving
-- Manual "Archive Now" button for immediate cleanup
-
-### 2. Container-Based Organization
-- Automatically assigns tabs to containers based on URL patterns
-- Zen's built-in container → workspace mapping then moves them to the correct workspace
-- Works seamlessly with Zen's auto-switching feature
-- Supports flexible URL pattern matching:
-  - Exact domain: `github.com`
-  - Wildcard subdomains: `*.github.com`
-  - Complex patterns: `*.google.*`
-
-### 3. Smart Exclusions
-- Excluded domains are never archived AND always assigned to correct container
-- Perfect for important sites you want organized but never closed
+- **Auto-Archive**: Automatically closes tabs that haven't been clicked in a configurable time (default: 48 hours)
+- **Workspace-Triggered**: Archives tabs immediately when you switch workspaces
+- **Smart Protection**: Protects pinned tabs and excluded domains
+- **Container Organization**: Automatically assigns tabs to containers based on URL patterns
+- **Cross-Device Sync**: Settings sync via Firefox Sync (tab access times stay local)
 
 ## Installation
 
-### Development Mode
+1. Download `zen-tab-manager.xpi` from releases
+2. In Zen Browser, set `xpinstall.signatures.required` to `false` in `about:config`
+3. Go to `about:addons` → Gear icon → Install Add-on From File
+4. Select the downloaded XPI file
 
-1. Clone or download this repository
-2. Open Zen Browser
-3. Navigate to `about:debugging#/runtime/this-firefox`
-4. Click "Load Temporary Add-on"
-5. Select the `manifest.json` file from this directory
-
-### Permanent Installation
-
-1. Build the extension:
-   ```bash
-   # Create a ZIP file of all source files
-   zip -r zen-tab-manager.xpi manifest.json background.js options.html options.js options.css icon.png
-   ```
-
-2. Install in Zen Browser:
-   - Go to `about:addons`
-   - Click the gear icon → "Install Add-on From File"
-   - Select the `.xpi` file
-
-## Configuration
-
-Access settings through the Zen Browser add-ons manager:
-1. Go to `about:addons`
-2. Find "Zen Tab Manager"
-3. Click "Options"
-
-### Settings Options
-
-**Auto-Archive Settings:**
-- Enable/disable automatic archiving
-- Set custom archive time (in hours)
-- Toggle pinned tab protection
-
-**Excluded Domains:**
-- Add domains that should never be archived
-- Use wildcards for flexible matching
-
-**Container Rules:**
-- Define URL patterns → Container mappings
-- Select containers from dropdown (populated from your Firefox containers)
-- Tabs matching patterns will auto-assign to containers
-- Zen will then move them to their assigned workspace (via Zen's built-in auto-switching)
-
-## Usage Examples
-
-### Example 1: Keep Work and Personal Tabs Separate
-```
-Container Rules:
-- Pattern: *.github.com → Container: Work
-- Pattern: *.gmail.com → Container: Personal
-- Pattern: *.reddit.com → Container: Personal
-
-Then in Zen's settings, map:
-- Work container → Work workspace
-- Personal container → Personal workspace
-```
-
-### Example 2: Aggressive Tab Cleanup
-```
-Auto-Archive Settings:
-- Archive after: 12 hours
-- Exclude pinned tabs: ON
-
-Excluded Domains:
-- gmail.com (keep email tabs)
-- calendar.google.com (keep calendar)
-- localhost:* (keep development servers)
-```
-
-### Example 3: Development Setup
-```
-Excluded Domains:
-- localhost:*
-- *.dev
-- github.com
-
-Container Rules:
-- localhost:* → Container: Development
-- *.github.com → Container: Code Review
-```
+See [INSTALL.md](INSTALL.md) for detailed instructions.
 
 ## How It Works
 
-### Tab Tracking
-- The extension tracks the last access time for each tab
-- Access time updates when you switch to a tab or create a new tab
-- Checks run every hour via browser alarms
-- Also checks on browser startup
+**Archiving Logic:**
+- Tracks when you last clicked each tab (not when it was last active in background)
+- When you switch workspaces, immediately checks for old tabs and closes them
+- Backup check runs once an hour if you stay in one workspace
+- Only sees tabs in the currently active workspace (Zen Browser limitation)
 
-### Container Assignment
-- Monitors tab creation and URL changes
-- Immediately assigns tabs to containers matching rules
-- Zen's built-in auto-switching then moves containers to workspaces
-- Respects excluded domains (never archived, always in correct container)
+**Activity Tracking:**
+- ✅ Clicking a tab = active
+- ❌ URL changes, background activity = still inactive
 
-### Pattern Matching
-Supports flexible URL patterns:
-- `example.com` - Matches exact domain
-- `*.example.com` - Matches domain and all subdomains
-- `*.google.*` - Matches all Google TLDs
-- Wildcards (`*`) match any characters
+This means YouTube, Amazon, and other sites with background activity will get archived if you don't actually click on them.
 
-## Notes
+## Configuration
 
-- **Container → Workspace Mapping**: This extension assigns tabs to containers. You must configure Zen's built-in container → workspace mapping in Zen's settings for tabs to end up in the correct workspace.
-- **No Data Loss**: Tabs are simply closed, not bookmarked. Consider bookmarking important tabs before closing.
-- **Performance**: Minimal performance impact - only checks once per hour and on tab events.
-- **Container Setup**: Make sure to create containers in Firefox/Zen and map them to workspaces in Zen's settings.
+Click the extension icon or go to `about:addons` → Zen Tab Manager → Options
+
+**Settings:**
+- Archive after: Time in hours (supports decimals: 0.5 = 30 min)
+- Exclude pinned tabs: Protect pinned tabs from archiving
+- Excluded domains: Domains that never get archived (supports wildcards)
+- Container rules: Auto-assign tabs to containers by URL pattern
+
+## Usage Examples
+
+**Quick cleanup for testing:**
+```
+Archive after: 0.01 hours (~36 seconds)
+Exclude pinned tabs: ON
+```
+
+**Aggressive daily cleanup:**
+```
+Archive after: 12 hours
+Excluded domains: gmail.com, calendar.google.com
+```
+
+**Container organization:**
+```
+Pattern: *.github.com → Container: Work
+Pattern: localhost:* → Container: Dev
+```
+
+Then map containers to workspaces in Zen's settings.
+
+## Known Limitations
+
+- **Zen Workspace Isolation**: Extension can only see tabs in the currently active workspace. This is why archiving happens when you switch workspaces - it cleans up each workspace as you enter it.
+- **No Undo**: Tabs are closed, not bookmarked. Pin important tabs or add domains to exclusions.
+- **Container Setup Required**: You must manually map containers to workspaces in Zen's settings for workspace organization to work.
 
 ## Troubleshooting
 
-**Tabs not closing automatically:**
-- Check that auto-archive is enabled in settings
-- Verify the archive time threshold
-- Ensure tabs aren't pinned (if that setting is enabled)
-- Check if domains are in the excluded list
+**Tabs not closing:**
+- Archiving happens when you switch workspaces, not on a timer
+- Check that the tab isn't pinned or in excluded domains
+- Try switching away from the workspace and back
 
-**Tabs not moving to workspaces:**
-- Verify container rules are configured correctly
-- Check that containers exist in Firefox/Zen
-- Ensure Zen's container → workspace mapping is configured in Zen settings
-- Enable Zen's auto-switching feature for containers
+**YouTube/Amazon not closing:**
+- Make sure you haven't clicked the tab recently
+- The extension now ignores background activity (URL changes, etc.)
 
-**Settings not saving:**
-- Check browser console for errors (Cmd+Option+I)
-- Try reinstalling the extension
+## Contributing
 
-## Development
-
-### File Structure
-```
-zen-tab-manager/
-├── manifest.json       # Extension manifest
-├── background.js       # Background script (tab management logic)
-├── options.html        # Settings page HTML
-├── options.js          # Settings page logic
-├── options.css         # Settings page styling
-└── README.md          # This file
-```
-
-### Building
-No build process required - this is a pure WebExtension. All files are source files.
-
-### Testing
-1. Load as temporary add-on in Zen Browser
-2. Open multiple tabs
-3. Check settings page for configuration
-4. Use browser console to see logs: `Closing X old tabs`
+This is a personal project that was vibe coded. Feel free to fork and improve it, but don't expect production-grade code quality. Pull requests are welcome.
 
 ## License
 
-MIT License - Feel free to modify and distribute
+MIT License
 
 ## Author
 
 Jani Laatunen (jani@laatunen.fi)
-
-## Version History
-
-- **1.0.0** - Initial release
-  - Auto-archive old tabs
-  - Workspace organization
-  - Configurable exclusions

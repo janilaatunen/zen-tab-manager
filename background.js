@@ -84,33 +84,26 @@ async function migrateToSync() {
 // Initialize settings on install
 browser.runtime.onInstalled.addListener(async (details) => {
   try {
-    console.log('[Zen Tab Manager] Extension installed/updated:', details.reason);
+    console.log('[Zen Tab Manager] Installed/updated:', details.reason);
 
-    // Run migration if updating from old version
     if (details.reason === 'update') {
       await migrateToSync();
     }
 
-    // Initialize settings if they don't exist
     const settings = await getSettings();
     if (!settings || Object.keys(settings).length === 0) {
       await saveSettings(DEFAULT_SETTINGS);
     }
 
-    // Create alarm for periodic tab checks as backup (once an hour)
-    // Primary archiving happens on workspace switch
+    // Backup check once an hour (primary archiving happens on workspace switch)
     browser.alarms.create('checkTabs', { periodInMinutes: 60 });
 
-    // Initialize tab access times (preserves existing times)
     await initializeTabAccessTimes();
-
-    // Run initial archive check on install/update
-    console.log('[Zen Tab Manager] Running initial archive check after install/update');
     await archiveOldTabs();
 
-    console.log('[Zen Tab Manager] ✓ Initialization complete');
+    console.log('[Zen Tab Manager] Initialization complete');
   } catch (error) {
-    console.error('[Zen Tab Manager] ERROR during initialization:', error);
+    console.error('[Zen Tab Manager] Initialization error:', error);
   }
 });
 
@@ -118,38 +111,28 @@ browser.runtime.onInstalled.addListener(async (details) => {
 async function initializeTabAccessTimes() {
   try {
     const tabs = await browser.tabs.query({});
-    console.log('[Zen Tab Manager] Queried', tabs.length, 'tabs for initialization');
-
-    // Get existing access times (preserve them across reloads)
     const stored = await browser.storage.local.get('tabAccessTimes');
     const accessTimes = stored.tabAccessTimes || {};
-    console.log('[Zen Tab Manager] Found', Object.keys(accessTimes).length, 'existing access times');
 
-    // Only add new tabs that don't have an access time
-    let newTabCount = 0;
+    // Add new tabs
     for (const tab of tabs) {
       if (!accessTimes[tab.id]) {
         accessTimes[tab.id] = Date.now();
-        newTabCount++;
       }
     }
-    console.log('[Zen Tab Manager] Added', newTabCount, 'new tabs');
 
-    // Clean up access times for tabs that no longer exist
+    // Clean up old tab references
     const currentTabIds = new Set(tabs.map(t => t.id));
-    let cleanedCount = 0;
     for (const tabId in accessTimes) {
       if (!currentTabIds.has(parseInt(tabId))) {
         delete accessTimes[tabId];
-        cleanedCount++;
       }
     }
-    console.log('[Zen Tab Manager] Cleaned up', cleanedCount, 'old tab references');
 
     await browser.storage.local.set({ tabAccessTimes: accessTimes });
-    console.log('[Zen Tab Manager] ✓ Initialized access times for', Object.keys(accessTimes).length, 'tabs');
+    console.log('[Zen Tab Manager] Initialized access times for', Object.keys(accessTimes).length, 'tabs');
   } catch (error) {
-    console.error('[Zen Tab Manager] ERROR in initializeTabAccessTimes:', error);
+    console.error('[Zen Tab Manager] Error initializing access times:', error);
   }
 }
 
@@ -177,38 +160,24 @@ browser.tabs.onActivated.addListener(async (activeInfo) => {
   // Update access time AFTER archive check
   const stored = await browser.storage.local.get('tabAccessTimes');
   const accessTimes = stored.tabAccessTimes || {};
-  const oldTime = accessTimes[activeInfo.tabId];
   accessTimes[activeInfo.tabId] = Date.now();
   await browser.storage.local.set({ tabAccessTimes: accessTimes });
-
-  if (oldTime) {
-    const timeSinceLastAccess = Date.now() - oldTime;
-    console.log('[Zen Tab Manager] Tab', activeInfo.tabId, 'accessed via onActivated. Time since last access:', timeSinceLastAccess, 'ms', tab.url);
-  }
 });
 
 // Track new tabs
 browser.tabs.onCreated.addListener(async (tab) => {
-  console.log('[Zen Tab Manager] Tab created:', tab.id, tab.url);
-
   const stored = await browser.storage.local.get('tabAccessTimes');
   const accessTimes = stored.tabAccessTimes || {};
-
   accessTimes[tab.id] = Date.now();
   await browser.storage.local.set({ tabAccessTimes: accessTimes });
 
-  // Check if tab should be moved to a different workspace
   await checkAndMoveTabToWorkspace(tab);
 });
 
 // Track tab updates (URL changes) - only for workspace assignment
-// Note: We do NOT update access time here - only user interaction (clicking tab) counts
+// Note: We do NOT update access time here - only user clicks count as activity
 browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.url) {
-    console.log('[Zen Tab Manager] Tab', tabId, 'URL changed:', changeInfo.url);
-
-    // Check if tab should be moved to a different workspace
-    // (but don't update access time - background activity doesn't count as "active")
     await checkAndMoveTabToWorkspace(tab);
   }
 });
@@ -224,49 +193,32 @@ browser.tabs.onRemoved.addListener(async (tabId) => {
 
 // Check if tab should be assigned to a container
 async function checkAndMoveTabToWorkspace(tab) {
-  console.log('[Zen Tab Manager] Checking container rules for tab:', tab.id, tab.url);
-
   const settings = await getSettings();
 
-  console.log('[Zen Tab Manager] Current container rules:', settings.workspaceRules);
-
   if (!tab.url || !settings.workspaceRules || settings.workspaceRules.length === 0) {
-    console.log('[Zen Tab Manager] No URL or no rules configured');
     return;
   }
 
   // Check each container rule
   for (const rule of settings.workspaceRules) {
-    console.log('[Zen Tab Manager] Testing rule:', rule.pattern, '→', rule.workspaceId);
-
     if (matchesPattern(tab.url, rule.pattern)) {
-      console.log('[Zen Tab Manager] ✓ Pattern matched! Attempting to assign to container:', rule.workspaceId);
-
-      // Skip if already in the correct container
       if (tab.cookieStoreId === rule.workspaceId) {
-        console.log('[Zen Tab Manager] ✓ Tab already in correct container');
         break;
       }
 
       try {
-        // Reopen tab in the correct container
-        const newTab = await browser.tabs.create({
+        await browser.tabs.create({
           url: tab.url,
           cookieStoreId: rule.workspaceId,
           active: tab.active,
           index: tab.index + 1
         });
-
-        // Close the old tab
         await browser.tabs.remove(tab.id);
-
-        console.log('[Zen Tab Manager] ✓ Tab moved to container successfully');
+        console.log('[Zen Tab Manager] Moved tab to container:', rule.pattern, '→', rule.workspaceId);
       } catch (error) {
-        console.log('[Zen Tab Manager] ✗ Container assignment failed:', error);
+        console.error('[Zen Tab Manager] Failed to move tab to container:', error);
       }
       break;
-    } else {
-      console.log('[Zen Tab Manager] ✗ Pattern did not match');
     }
   }
 }
@@ -316,131 +268,62 @@ function isExcludedDomain(url, excludedDomains) {
 
 // Archive old tabs (in the currently active workspace only, due to Zen's API limitations)
 async function archiveOldTabs() {
-  console.log('[Zen Tab Manager] Running archive check for current workspace...');
-
   const settings = await getSettings();
   const localData = await browser.storage.local.get('tabAccessTimes');
   const accessTimes = localData.tabAccessTimes || {};
 
-  console.log('[Zen Tab Manager] Settings:', {
-    archiveEnabled: settings.archiveEnabled,
-    archiveAfterHours: settings.archiveAfterHours,
-    excludePinnedTabs: settings.excludePinnedTabs,
-    excludedDomains: settings.excludedDomains
-  });
-
   if (!settings.archiveEnabled) {
-    console.log('[Zen Tab Manager] Archive is disabled, skipping');
     return;
   }
 
   const now = Date.now();
-  const archiveThreshold = settings.archiveAfterHours * 60 * 60 * 1000; // Convert hours to milliseconds
+  const archiveThreshold = settings.archiveAfterHours * 60 * 60 * 1000;
 
-  console.log('[Zen Tab Manager] Archive threshold:', archiveThreshold, 'ms (', settings.archiveAfterHours, 'hours)');
-
-  // Zen Browser hides tabs from inactive workspaces from the WebExtensions API
-  // Try multiple query strategies to find all tabs
-
+  // Query tabs (Zen only exposes tabs from active workspace)
   const tabsById = new Map();
 
-  // Strategy 1: Query all windows
   try {
     const allWindows = await browser.windows.getAll({ populate: false });
-    console.log('[Zen Tab Manager] Strategy 1: Found', allWindows.length, 'windows');
-
     for (const window of allWindows) {
       const windowTabs = await browser.tabs.query({ windowId: window.id });
       windowTabs.forEach(tab => tabsById.set(tab.id, tab));
     }
-  } catch (error) {
-    console.log('[Zen Tab Manager] Strategy 1 failed:', error);
-  }
 
-  // Strategy 2: Try querying with hidden parameter
-  try {
-    const hiddenTabs = await browser.tabs.query({ hidden: true });
-    console.log('[Zen Tab Manager] Strategy 2: Found', hiddenTabs.length, 'hidden tabs');
-    hiddenTabs.forEach(tab => tabsById.set(tab.id, tab));
-  } catch (error) {
-    console.log('[Zen Tab Manager] Strategy 2 failed (hidden tabs not supported):', error.message);
-  }
-
-  // Strategy 3: Query each container explicitly
-  try {
     const allContainers = await browser.contextualIdentities.query({});
-    console.log('[Zen Tab Manager] Strategy 3: Found', allContainers.length, 'containers');
-
     for (const container of allContainers) {
       const containerTabs = await browser.tabs.query({ cookieStoreId: container.cookieStoreId });
-      console.log('[Zen Tab Manager]  - Container', container.name, ':', containerTabs.length, 'tabs');
       containerTabs.forEach(tab => tabsById.set(tab.id, tab));
     }
 
-    // Also query default container
     const defaultTabs = await browser.tabs.query({ cookieStoreId: 'firefox-default' });
-    console.log('[Zen Tab Manager]  - Default container:', defaultTabs.length, 'tabs');
     defaultTabs.forEach(tab => tabsById.set(tab.id, tab));
   } catch (error) {
-    console.log('[Zen Tab Manager] Strategy 3 failed:', error);
+    console.error('[Zen Tab Manager] Error querying tabs:', error);
   }
 
   const tabs = Array.from(tabsById.values());
-  console.log('[Zen Tab Manager] Total unique tabs found:', tabs.length);
-
-  if (tabs.length < 20) {
-    console.log('[Zen Tab Manager] ⚠️  LIMITATION: Zen Browser only exposes tabs from the ACTIVE workspace');
-    console.log('[Zen Tab Manager] ⚠️  To archive tabs in other workspaces, manually switch to each workspace');
-    console.log('[Zen Tab Manager] ⚠️  The extension will check tabs in the active workspace every minute');
-  }
-
   const tabsToClose = [];
 
   for (const tab of tabs) {
-    // Special logging for Amazon tabs to debug the issue
-    if (tab.url && tab.url.includes('amazon')) {
-      console.log('[Zen Tab Manager] 🔍 Amazon tab detected:', tab.id, {
-        url: tab.url,
-        pinned: tab.pinned,
-        lastAccessTime: accessTimes[tab.id] || 'never',
-        currentTime: now
-      });
-    }
-
-    // Skip pinned tabs if setting is enabled
     if (settings.excludePinnedTabs && tab.pinned) {
-      console.log('[Zen Tab Manager] Skipping pinned tab:', tab.id, tab.url);
       continue;
     }
 
-    // Skip tabs with excluded domains
     if (tab.url && isExcludedDomain(tab.url, settings.excludedDomains || [])) {
-      console.log('[Zen Tab Manager] Skipping excluded domain:', tab.id, tab.url);
       continue;
     }
 
-    // Check if tab is old enough to archive
     const lastAccess = accessTimes[tab.id] || now;
     const timeSinceAccess = now - lastAccess;
-
-    console.log('[Zen Tab Manager] Tab', tab.id, ':', {
-      url: tab.url,
-      lastAccess: new Date(lastAccess).toISOString(),
-      timeSinceAccess: timeSinceAccess,
-      shouldClose: timeSinceAccess > archiveThreshold
-    });
 
     if (timeSinceAccess > archiveThreshold) {
       tabsToClose.push(tab.id);
     }
   }
 
-  // Close old tabs
   if (tabsToClose.length > 0) {
-    console.log(`[Zen Tab Manager] Closing ${tabsToClose.length} old tabs:`, tabsToClose);
+    console.log(`[Zen Tab Manager] Closing ${tabsToClose.length} old tabs`);
     await browser.tabs.remove(tabsToClose);
-  } else {
-    console.log('[Zen Tab Manager] No tabs to close');
   }
 }
 
@@ -453,15 +336,10 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
 
 // Run check on browser startup and initialize current workspace
 browser.runtime.onStartup.addListener(async () => {
-  console.log('[Zen Tab Manager] Browser startup - running initial archive check');
-
-  // Initialize current workspace
   const activeTabs = await browser.tabs.query({ active: true, currentWindow: true });
   if (activeTabs.length > 0) {
     currentWorkspace = activeTabs[0].cookieStoreId || 'firefox-default';
-    console.log('[Zen Tab Manager] Initial workspace:', currentWorkspace);
   }
-
   await archiveOldTabs();
 });
 
