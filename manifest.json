@@ -9,6 +9,7 @@
     "storage",
     "alarms",
     "contextualIdentities",
+    "cookies",
     "<all_urls>"
   ],
   "background": {
