@@ -83,56 +83,74 @@ async function migrateToSync() {
 
 // Initialize settings on install
 browser.runtime.onInstalled.addListener(async (details) => {
-  console.log('[Zen Tab Manager] Extension installed/updated:', details.reason);
+  try {
+    console.log('[Zen Tab Manager] Extension installed/updated:', details.reason);
 
-  // Run migration if updating from old version
-  if (details.reason === 'update') {
-    await migrateToSync();
+    // Run migration if updating from old version
+    if (details.reason === 'update') {
+      await migrateToSync();
+    }
+
+    // Initialize settings if they don't exist
+    const settings = await getSettings();
+    if (!settings || Object.keys(settings).length === 0) {
+      await saveSettings(DEFAULT_SETTINGS);
+    }
+
+    // Create alarm for periodic tab checks as backup (once an hour)
+    // Primary archiving happens on workspace switch
+    browser.alarms.create('checkTabs', { periodInMinutes: 60 });
+
+    // Initialize tab access times (preserves existing times)
+    await initializeTabAccessTimes();
+
+    // Run initial archive check on install/update
+    console.log('[Zen Tab Manager] Running initial archive check after install/update');
+    await archiveOldTabs();
+
+    console.log('[Zen Tab Manager] ✓ Initialization complete');
+  } catch (error) {
+    console.error('[Zen Tab Manager] ERROR during initialization:', error);
   }
-
-  // Initialize settings if they don't exist
-  const settings = await getSettings();
-  if (!settings || Object.keys(settings).length === 0) {
-    await saveSettings(DEFAULT_SETTINGS);
-  }
-
-  // Create alarm for periodic tab checks as backup (once an hour)
-  // Primary archiving happens on workspace switch
-  browser.alarms.create('checkTabs', { periodInMinutes: 60 });
-
-  // Initialize tab access times (preserves existing times)
-  await initializeTabAccessTimes();
-
-  // Run initial archive check on install/update
-  console.log('[Zen Tab Manager] Running initial archive check after install/update');
-  await archiveOldTabs();
 });
 
 // Track tab access times - preserve existing times, only add new tabs
 async function initializeTabAccessTimes() {
-  const tabs = await browser.tabs.query({});
+  try {
+    const tabs = await browser.tabs.query({});
+    console.log('[Zen Tab Manager] Queried', tabs.length, 'tabs for initialization');
 
-  // Get existing access times (preserve them across reloads)
-  const stored = await browser.storage.local.get('tabAccessTimes');
-  const accessTimes = stored.tabAccessTimes || {};
+    // Get existing access times (preserve them across reloads)
+    const stored = await browser.storage.local.get('tabAccessTimes');
+    const accessTimes = stored.tabAccessTimes || {};
+    console.log('[Zen Tab Manager] Found', Object.keys(accessTimes).length, 'existing access times');
 
-  // Only add new tabs that don't have an access time
-  for (const tab of tabs) {
-    if (!accessTimes[tab.id]) {
-      accessTimes[tab.id] = Date.now();
+    // Only add new tabs that don't have an access time
+    let newTabCount = 0;
+    for (const tab of tabs) {
+      if (!accessTimes[tab.id]) {
+        accessTimes[tab.id] = Date.now();
+        newTabCount++;
+      }
     }
-  }
+    console.log('[Zen Tab Manager] Added', newTabCount, 'new tabs');
 
-  // Clean up access times for tabs that no longer exist
-  const currentTabIds = new Set(tabs.map(t => t.id));
-  for (const tabId in accessTimes) {
-    if (!currentTabIds.has(parseInt(tabId))) {
-      delete accessTimes[tabId];
+    // Clean up access times for tabs that no longer exist
+    const currentTabIds = new Set(tabs.map(t => t.id));
+    let cleanedCount = 0;
+    for (const tabId in accessTimes) {
+      if (!currentTabIds.has(parseInt(tabId))) {
+        delete accessTimes[tabId];
+        cleanedCount++;
+      }
     }
-  }
+    console.log('[Zen Tab Manager] Cleaned up', cleanedCount, 'old tab references');
 
-  await browser.storage.local.set({ tabAccessTimes: accessTimes });
-  console.log('[Zen Tab Manager] Initialized access times for', Object.keys(accessTimes).length, 'tabs');
+    await browser.storage.local.set({ tabAccessTimes: accessTimes });
+    console.log('[Zen Tab Manager] ✓ Initialized access times for', Object.keys(accessTimes).length, 'tabs');
+  } catch (error) {
+    console.error('[Zen Tab Manager] ERROR in initializeTabAccessTimes:', error);
+  }
 }
 
 // Track the currently active workspace to detect switches
