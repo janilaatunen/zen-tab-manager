@@ -96,8 +96,9 @@ browser.runtime.onInstalled.addListener(async (details) => {
     await saveSettings(DEFAULT_SETTINGS);
   }
 
-  // Create alarm for periodic tab checks (every minute)
-  browser.alarms.create('checkTabs', { periodInMinutes: 1 });
+  // Create alarm for periodic tab checks as backup (every 30 minutes)
+  // Primary archiving happens on workspace switch
+  browser.alarms.create('checkTabs', { periodInMinutes: 30 });
 
   // Initialize tab access times
   await initializeTabAccessTimes();
@@ -115,13 +116,28 @@ async function initializeTabAccessTimes() {
   await browser.storage.local.set({ tabAccessTimes: accessTimes });
 }
 
-// Update tab access time when activated
+// Track the currently active workspace to detect switches
+let currentWorkspace = null;
+
+// Update tab access time when activated AND detect workspace switches
 browser.tabs.onActivated.addListener(async (activeInfo) => {
   const stored = await browser.storage.local.get('tabAccessTimes');
   const accessTimes = stored.tabAccessTimes || {};
 
   accessTimes[activeInfo.tabId] = Date.now();
   await browser.storage.local.set({ tabAccessTimes: accessTimes });
+
+  // Detect workspace switch
+  const tab = await browser.tabs.get(activeInfo.tabId);
+  const newWorkspace = tab.cookieStoreId || 'firefox-default';
+
+  if (currentWorkspace && currentWorkspace !== newWorkspace) {
+    console.log('[Zen Tab Manager] Workspace switch detected:', currentWorkspace, '→', newWorkspace);
+    console.log('[Zen Tab Manager] Running immediate archive check...');
+    await archiveOldTabs();
+  }
+
+  currentWorkspace = newWorkspace;
 });
 
 // Track new tabs
@@ -255,9 +271,9 @@ function isExcludedDomain(url, excludedDomains) {
   }
 }
 
-// Archive old tabs
+// Archive old tabs (in the currently active workspace only, due to Zen's API limitations)
 async function archiveOldTabs() {
-  console.log('[Zen Tab Manager] Running archiveOldTabs check...');
+  console.log('[Zen Tab Manager] Running archive check for current workspace...');
 
   const settings = await getSettings();
   const localData = await browser.storage.local.get('tabAccessTimes');
@@ -382,8 +398,17 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-// Run check on browser startup
+// Run check on browser startup and initialize current workspace
 browser.runtime.onStartup.addListener(async () => {
+  console.log('[Zen Tab Manager] Browser startup - running initial archive check');
+
+  // Initialize current workspace
+  const activeTabs = await browser.tabs.query({ active: true, currentWindow: true });
+  if (activeTabs.length > 0) {
+    currentWorkspace = activeTabs[0].cookieStoreId || 'firefox-default';
+    console.log('[Zen Tab Manager] Initial workspace:', currentWorkspace);
+  }
+
   await archiveOldTabs();
 });
 
