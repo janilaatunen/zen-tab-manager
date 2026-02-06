@@ -136,14 +136,15 @@ async function initializeTabAccessTimes() {
   }
 }
 
-// Track the currently active workspace to detect switches
-let currentWorkspace = null;
-
 // Detect workspace switches AND update tab access time
 browser.tabs.onActivated.addListener(async (activeInfo) => {
   // Get tab info first to detect workspace switch
   const tab = await browser.tabs.get(activeInfo.tabId);
   const newWorkspace = tab.cookieStoreId || 'firefox-default';
+
+  // Get current workspace from storage (persists across script reloads)
+  const stored = await browser.storage.local.get('currentWorkspace');
+  const currentWorkspace = stored.currentWorkspace;
 
   // Check for workspace switch BEFORE updating access times
   if (currentWorkspace && currentWorkspace !== newWorkspace) {
@@ -155,7 +156,8 @@ browser.tabs.onActivated.addListener(async (activeInfo) => {
     await archiveOldTabs();
   }
 
-  currentWorkspace = newWorkspace;
+  // Store new workspace (persists across script reloads)
+  await browser.storage.local.set({ currentWorkspace: newWorkspace });
 
   // Update access time AFTER archive check
   const stored = await browser.storage.local.get('tabAccessTimes');
@@ -268,13 +270,14 @@ function isExcludedDomain(url, excludedDomains) {
 
 // Archive old tabs (in the currently active workspace only, due to Zen's API limitations)
 async function archiveOldTabs() {
-  const settings = await getSettings();
-  const localData = await browser.storage.local.get('tabAccessTimes');
-  const accessTimes = localData.tabAccessTimes || {};
+  try {
+    const settings = await getSettings();
+    const localData = await browser.storage.local.get('tabAccessTimes');
+    const accessTimes = localData.tabAccessTimes || {};
 
-  if (!settings.archiveEnabled) {
-    return;
-  }
+    if (!settings.archiveEnabled) {
+      return;
+    }
 
   const now = Date.now();
   const archiveThreshold = settings.archiveAfterHours * 60 * 60 * 1000;
@@ -321,9 +324,12 @@ async function archiveOldTabs() {
     }
   }
 
-  if (tabsToClose.length > 0) {
-    console.log(`[Zen Tab Manager] Closing ${tabsToClose.length} old tabs`);
-    await browser.tabs.remove(tabsToClose);
+    if (tabsToClose.length > 0) {
+      console.log(`[Zen Tab Manager] Closing ${tabsToClose.length} old tabs`);
+      await browser.tabs.remove(tabsToClose);
+    }
+  } catch (error) {
+    console.error('[Zen Tab Manager] Error during archive check:', error);
   }
 }
 
@@ -338,7 +344,8 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
 browser.runtime.onStartup.addListener(async () => {
   const activeTabs = await browser.tabs.query({ active: true, currentWindow: true });
   if (activeTabs.length > 0) {
-    currentWorkspace = activeTabs[0].cookieStoreId || 'firefox-default';
+    const workspace = activeTabs[0].cookieStoreId || 'firefox-default';
+    await browser.storage.local.set({ currentWorkspace: workspace });
   }
   await archiveOldTabs();
 });
