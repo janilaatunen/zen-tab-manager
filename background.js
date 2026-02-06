@@ -119,25 +119,29 @@ async function initializeTabAccessTimes() {
 // Track the currently active workspace to detect switches
 let currentWorkspace = null;
 
-// Update tab access time when activated AND detect workspace switches
+// Detect workspace switches AND update tab access time
 browser.tabs.onActivated.addListener(async (activeInfo) => {
-  const stored = await browser.storage.local.get('tabAccessTimes');
-  const accessTimes = stored.tabAccessTimes || {};
-
-  accessTimes[activeInfo.tabId] = Date.now();
-  await browser.storage.local.set({ tabAccessTimes: accessTimes });
-
-  // Detect workspace switch
+  // Get tab info first to detect workspace switch
   const tab = await browser.tabs.get(activeInfo.tabId);
   const newWorkspace = tab.cookieStoreId || 'firefox-default';
 
+  // Check for workspace switch BEFORE updating access times
   if (currentWorkspace && currentWorkspace !== newWorkspace) {
     console.log('[Zen Tab Manager] Workspace switch detected:', currentWorkspace, '→', newWorkspace);
     console.log('[Zen Tab Manager] Running immediate archive check...');
+
+    // Run archive check BEFORE updating access time
+    // This ensures the tab that triggered the switch can still be archived if old
     await archiveOldTabs();
   }
 
   currentWorkspace = newWorkspace;
+
+  // Update access time AFTER archive check
+  const stored = await browser.storage.local.get('tabAccessTimes');
+  const accessTimes = stored.tabAccessTimes || {};
+  accessTimes[activeInfo.tabId] = Date.now();
+  await browser.storage.local.set({ tabAccessTimes: accessTimes });
 });
 
 // Track new tabs
