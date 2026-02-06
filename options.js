@@ -79,7 +79,7 @@ async function loadContainers() {
 async function saveSettings() {
   const settings = {
     archiveEnabled: document.getElementById('archiveEnabled').checked,
-    archiveAfterHours: parseInt(document.getElementById('archiveAfterHours').value),
+    archiveAfterHours: parseFloat(document.getElementById('archiveAfterHours').value),
     excludePinnedTabs: document.getElementById('excludePinnedTabs').checked,
     excludedDomains: getCurrentExcludedDomains(),
     workspaceRules: getCurrentWorkspaceRules(),
