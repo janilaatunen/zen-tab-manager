@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Zen Tab Manager Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Zen Tab Manager Settings</h1>
+
+    <section class="settings-section">
+      <h2>Auto-Archive Settings</h2>
+
+      <div class="setting">
+        <label>
+          <input type="checkbox" id="archiveEnabled">
+          Enable automatic tab archiving
+        </label>
+      </div>
+
+      <div class="setting">
+        <label for="archiveAfterHours">Archive tabs after (hours):</label>
+        <input type="number" id="archiveAfterHours" min="1" step="1" value="48">
+        <span class="help-text">Default: 48 hours (2 days)</span>
+      </div>
+
+      <div class="setting">
+        <label>
+          <input type="checkbox" id="excludePinnedTabs">
+          Never archive pinned tabs
+        </label>
+      </div>
+
+      <div class="setting">
+        <button id="archiveNow" class="secondary-button">Archive Old Tabs Now</button>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2>Excluded Domains</h2>
+      <p class="help-text">Tabs from these domains will never be archived and will always move to their assigned workspace.</p>
+
+      <div id="excludedDomainsList"></div>
+
+      <div class="add-rule">
+        <input type="text" id="newExcludedDomain" placeholder="example.com or *.example.com">
+        <button id="addExcludedDomain">Add Domain</button>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2>Container Rules</h2>
+      <p class="help-text">Automatically assign tabs to containers based on URL patterns. Zen will then move them to their assigned workspace.</p>
+
+      <div id="workspaceRulesList"></div>
+
+      <div class="add-rule">
+        <input type="text" id="newRulePattern" placeholder="URL pattern (e.g., *.github.com)">
+        <select id="newRuleWorkspace">
+          <option value="">Select container...</option>
+        </select>
+        <button id="addWorkspaceRule">Add Rule</button>
+      </div>
+
+      <div class="help-text">
+        <strong>Pattern examples:</strong>
+        <ul>
+          <li><code>github.com</code> - Exact domain</li>
+          <li><code>*.github.com</code> - Domain and all subdomains</li>
+          <li><code>*.google.*</code> - All Google domains</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button id="saveSettings" class="primary-button">Save Settings</button>
+      <button id="resetSettings" class="secondary-button">Reset to Defaults</button>
+    </div>
+
+    <div id="status" class="status hidden"></div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

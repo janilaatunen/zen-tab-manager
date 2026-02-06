@@ -1,0 +1,240 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background: #f5f5f5;
+  padding: 20px;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  padding: 40px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  font-size: 28px;
+  margin-bottom: 30px;
+  color: #2c3e50;
+}
+
+h2 {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: #34495e;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 8px;
+}
+
+.settings-section {
+  margin-bottom: 40px;
+}
+
+.setting {
+  margin-bottom: 20px;
+}
+
+.setting label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #555;
+}
+
+.setting input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.setting input[type="number"],
+.setting input[type="text"] {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 200px;
+}
+
+.setting input[type="number"]:focus,
+.setting input[type="text"]:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.help-text {
+  display: block;
+  font-size: 13px;
+  color: #7f8c8d;
+  margin-top: 5px;
+}
+
+.help-text ul {
+  margin-left: 20px;
+  margin-top: 10px;
+}
+
+.help-text code {
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.add-rule {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.add-rule input,
+.add-rule select {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.add-rule select {
+  background: white;
+  cursor: pointer;
+}
+
+.add-rule select:focus,
+.add-rule input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.primary-button {
+  background: #3498db;
+  color: white;
+}
+
+.primary-button:hover {
+  background: #2980b9;
+}
+
+.secondary-button {
+  background: #95a5a6;
+  color: white;
+}
+
+.secondary-button:hover {
+  background: #7f8c8d;
+}
+
+.add-rule button,
+#addExcludedDomain,
+#addWorkspaceRule {
+  background: #27ae60;
+  color: white;
+}
+
+.add-rule button:hover,
+#addExcludedDomain:hover,
+#addWorkspaceRule:hover {
+  background: #229954;
+}
+
+.actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #ecf0f1;
+}
+
+.status {
+  margin-top: 20px;
+  padding: 12px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.status.success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status.error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.status.hidden {
+  display: none;
+}
+
+.rule-item,
+.domain-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.rule-item code,
+.domain-item code {
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  color: #2c3e50;
+}
+
+.rule-item button,
+.domain-item button {
+  background: #e74c3c;
+  color: white;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.rule-item button:hover,
+.domain-item button:hover {
+  background: #c0392b;
+}
+
+.rule-content {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.rule-pattern,
+.rule-workspace {
+  display: flex;
+  flex-direction: column;
+}
+
+.rule-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #7f8c8d;
+  margin-bottom: 4px;
+}

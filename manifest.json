@@ -1,0 +1,39 @@
+{
+  "manifest_version": 2,
+  "name": "Zen Tab Manager",
+  "version": "1.0.0",
+  "description": "Automatically archive old tabs and organize tabs into workspaces based on URL patterns",
+  "author": "Jani Laatunen",
+  "permissions": [
+    "tabs",
+    "storage",
+    "alarms",
+    "contextualIdentities",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "browser_action": {
+    "default_icon": {
+      "48": "icon.png",
+      "96": "icon.png"
+    },
+    "default_title": "Zen Tab Manager Settings"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "zen-tab-manager@laatunen.fi",
+      "strict_min_version": "91.0"
+    }
+  },
+  "icons": {
+    "48": "icon.png",
+    "96": "icon.png"
+  }
+}
