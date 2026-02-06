@@ -96,8 +96,8 @@ browser.runtime.onInstalled.addListener(async (details) => {
     await saveSettings(DEFAULT_SETTINGS);
   }
 
-  // Create alarm for periodic tab checks (every hour)
-  browser.alarms.create('checkTabs', { periodInMinutes: 60 });
+  // Create alarm for periodic tab checks (every minute)
+  browser.alarms.create('checkTabs', { periodInMinutes: 1 });
 
   // Initialize tab access times
   await initializeTabAccessTimes();
