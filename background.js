@@ -160,8 +160,8 @@ browser.tabs.onActivated.addListener(async (activeInfo) => {
   await browser.storage.local.set({ currentWorkspace: newWorkspace });
 
   // Update access time AFTER archive check
-  const stored = await browser.storage.local.get('tabAccessTimes');
-  const accessTimes = stored.tabAccessTimes || {};
+  const accessData = await browser.storage.local.get('tabAccessTimes');
+  const accessTimes = accessData.tabAccessTimes || {};
   accessTimes[activeInfo.tabId] = Date.now();
   await browser.storage.local.set({ tabAccessTimes: accessTimes });
 });
